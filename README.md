@@ -1,6 +1,7 @@
 # LEMP tool
 
 LEMP is a tool that uses docker containers to create a local LEMP (Linux, nginx, MySQL, PHP) stack.
+
 It is intended to be use for development purpose.
 
 ## Installation
@@ -16,6 +17,7 @@ sudo ./install.sh
 
 Usage:  `lemp COMMAND`
 
+```
 Commands:
   start      Start LEMP containers
   stop       Stop LEMP containers
@@ -24,8 +26,14 @@ Commands:
   logs       Display container's logs
   version    Display LEMP tool version
   help       Display this help message
+```
 
 Run `lemp COMMAND --help` for further information on a specific command.
+
+
+When LEMP is started, the site can be accessed at : [http://localhost:8080](http://localhost:8080)
+
+A phpMyAdmin interface is also accessible at : [http://localhost:8888](http://localhost:8888)
 
 ## License
 
