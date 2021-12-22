@@ -1,0 +1,262 @@
+#!/bin/bash
+
+# LEMP tool
+# LEMP is a tool that uses docker containers to create 
+# a local LEMP (Linux, nginx, MySQL, PHP) stack.
+
+# Copyright 2021 VON DER WEID Joël
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+# IN THE SOFTWARE.
+
+set -e
+
+V="1.0"
+
+help() {
+  echo "Usage:  lemp COMMAND"
+  echo ""
+  echo "Commands:"
+  echo "  start      Start LEMP containers"
+  echo "  stop       Stop LEMP containers"
+  echo "  restart    Restart LEMP containers"
+  echo "  status     Display LEMP status"
+  echo "  logs       Display container's logs"
+  echo "  version    Display LEMP tool version"
+  echo "  help       Display this help message"
+  echo ""
+  echo "Run 'lemp COMMAND --help' for further information on a specific command"
+}
+
+i=0
+docker compose version > /dev/null 2>&1 && i=1
+if [ $i -ne 1 ];then
+  echo "'docker compose' command is not available. Install Docker Compose V2 to use LEMP tool."
+  exit 1
+fi
+
+act=$1
+H=0
+for arg in "$@"
+do
+  if [ $arg == "--help" ];then
+    H=1
+    break
+  fi
+done
+
+# Display specific help if asked
+if [ $H -eq 1 ];then
+  if [ $act == "start" ];then
+    echo "Usage:  lemp start [PATH]"
+    echo ""
+    echo "Start LEMP containers"
+    echo ""
+    echo "  path     Path of the server's working dir"
+    echo "           Default: ."
+  elif [ $act == "stop" ];then
+    echo "Usage:  lemp stop"
+    echo ""
+    echo "Stop LEMP containers"
+  elif [ $act == "restart" ];then
+    echo "Usage:  lemp restart"
+    echo ""
+    echo "Restart LEMP containers"
+  elif [ $act == "status" ];then
+    echo "Usage:  lemp status [OPTIONS]"
+    echo ""
+    echo "Display LEMP status"
+    echo ""
+    echo "Options:"
+    echo "  -q       Quiet mode. Only prints 1 or 0 if LEMP is running or not"
+  elif [ $act == "logs" ];then
+    echo "Usage:  lemp logs [NAME]"
+    echo ""
+    echo "Display container's logs"
+    echo ""
+    echo "Options:"
+    echo "  NAME     Service's name. If no name is provided, all logs are displayed"
+    echo "           Possible services : nginx, php, mysql, phpmyadmin"
+  elif [ $act == "version" ];then
+    echo "Usage:  lemp version"
+    echo ""
+    echo "Display LEMP tool version"
+  elif [ $act == "help" ];then
+    echo 'LEMP is a tool that run a LEMP stack (Linux, nginx, MySQL, PHP) using docker containers'
+    echo "When LEMP is running, visit http://localhost:8080 to access your files,"
+    echo "or http://localhost:8888 to access phpMyAdmin"
+    echo ""
+    help
+  else
+    help
+  fi
+
+  exit 0
+fi
+
+WD=`pwd`
+TMP="/tmp/.lempwd"
+DIR="$(dirname "$(realpath "$(cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")")")"
+cd $DIR
+
+if [ $# -lt 1 ];then
+  echo "Missing command"
+  help
+  exit 1
+fi
+
+# Getting running status
+export WORK_DIR="$WD"
+RUNNING=0
+if [ -f "$TMP" ];then
+  RUNNING=1
+  export WORK_DIR=`cat "$TMP"`
+fi
+
+NC=`docker compose ps -q | wc -l`
+if [ $RUNNING -eq 1 ] && [ $NC -ne 4 ];then
+  docker compose stop
+  rm -f $TMP
+  export WORK_DIR="$WD"
+  RUNNING=0
+elif [ $RUNNING -eq 0 ] && [ $NC -ne 0 ];then
+  docker compose stop
+  rm -f $TMP
+fi
+
+# Actions switch
+if [ $act == "start" ];then
+  if [ $RUNNING -eq 1 ];then
+    echo "LEMP already running, with folder : $WORK_DIR"
+    exit 1
+  fi
+  if [ $# -gt 2 ];then
+    echo "Wrong number of arguments"
+    ./lemp start --help
+    exit 1
+  fi
+
+  if [ $# -eq 2 ];then
+    cd $WD
+    export WORK_DIR=`realpath $2`
+    if [ ! -d "$WORK_DIR" ];then
+      echo "path must exist and be a directory"
+      exit 1
+    fi
+
+  fi
+
+  cd $DIR
+  echo $WORK_DIR > "$TMP"
+
+  echo "Starting LEMP, with folder : $WORK_DIR"
+  docker compose up -d
+  docker compose ps
+
+  echo ""
+  echo "Your site is available at http://localhost:8080"
+
+elif [ $act == "stop" ];then
+  if [ $RUNNING -eq 1 ];then
+    if [ $# -gt 1 ];then
+      echo "Unknown argument : $2"
+      ./lemp stop --help
+      exit 1
+    fi
+
+    docker compose down
+    rm "$TMP"
+  else
+    echo "LEMP is not running, use 'lemp start' to start containers"
+  fi
+
+elif [ $act == "restart" ];then
+  if [ $# -gt 1 ];then
+      echo "Unknown argument : $2"
+      ./lemp restart --help
+      exit 1
+  fi
+
+  if [ $RUNNING -eq 1 ];then
+    docker compose restart
+  else
+    echo "LEMP is not running, use 'lemp start' to start containers"
+  fi
+
+elif [ $act == "status" ];then
+  if [ $# -eq 2 ] && [ $2 == "-q" ];then
+    echo $RUNNING
+  elif [ $# -eq 1 ];then
+    if [ $RUNNING -eq 1 ];then
+      echo "LEMP is running, with folder : $WORK_DIR"
+      docker compose ps
+    else
+      echo "LEMP is not running"
+    fi
+  
+  elif [ $2 != "-q" ];then
+    echo "Unknown argument : $2"
+    ./lemp status --help
+    exit 1
+  else
+    echo "Unknown argument : $3"
+    ./lemp status --help
+    exit 1
+  fi
+
+elif [ $act == "logs" ];then
+  if [ $RUNNING -eq 1 ];then
+    if [ $# -eq 2 ];then
+      if [ $2 == "nginx" ] || [ $2 == "php" ] || [ $2 == "mysql" ] || [ $2 == "phpmyadmin" ];then
+        docker compose logs -f $2
+      else
+        echo "Unknown service name"
+        ./lemp logs --help
+        exit 1
+      fi
+    elif [ $# -eq 1 ];then
+      docker compose logs -f
+
+    elif [ $2 == "nginx" ] || [ $2 == "php" ] || [ $2 == "mysql" ] || [ $2 == "phpmyadmin" ];then
+      echo "Unknown argument : $3"
+      ./lemp logs --help
+      exit 1
+    else
+      echo "Unknown service name"
+      ./lemp logs --help
+      exit 1
+    fi
+  else
+    echo "LEMP is not running, use 'lemp start' to start containers"
+  fi
+
+elif [ $act == "version" ];then
+  echo "LEMP tool v$V"
+
+elif [ $act == "help" ];then
+  echo 'LEMP is a tool that run a LEMP stack (Linux, nginx, MySQL, PHP) using docker containers'
+  echo "When LEMP is running, visit http://localhost:8080 to access your files,"
+  echo "or http://localhost:8888 to access phpMyAdmin"
+  echo ""
+  help
+
+else
+  echo "Unknown command"
+  help
+  exit 1
+fi
