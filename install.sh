@@ -16,14 +16,17 @@ fi
 
 cd -- "$(dirname "${BASH_SOURCE[0]}")"
 
+rm -rf /usr/local/lemp
 mkdir -p /usr/local/lemp
 
 cp -r ./.docker /usr/local/lemp/
 cp ./docker-compose.yml /usr/local/lemp/
 cp ./lemp /usr/local/lemp/
 
+rm -f /usr/local/bin/lemp
 ln -s /usr/local/lemp/lemp /usr/local/bin/lemp
 
+mkdir -p /etc/bash_completion.d
 cp ./lemp-completion.sh /etc/bash_completion.d/
 
 echo "LEMP tool installed successfully"
